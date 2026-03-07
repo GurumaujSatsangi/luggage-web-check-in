@@ -12,6 +12,7 @@ import pg from "pg";
 
 
 
+
 dotenv.config();
 
 
@@ -27,7 +28,7 @@ const adapter = new PrismaPg(pool);
 
 const prisma = new PrismaClient({ adapter });
 const app = express();
-
+app.use(express.static("public"));
 const upload = multer({ storage: multer.memoryStorage() });
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -42,6 +43,11 @@ app.get("/",async(req,res)=>{
 
 app.get("/dashboard",async(req,res)=>{
     return res.render("dashboard.ejs");
+})
+
+app.post("/schedule-check-in", async(req,res)=>{
+    const {check_in_date, check_out_date, check_in_time, check_out_time, luggage_info, image} = req.body;
+
 })
 
 app.listen(port, ()=>{
