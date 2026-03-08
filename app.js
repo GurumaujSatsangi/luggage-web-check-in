@@ -35,7 +35,7 @@ app.use(bodyParser.json());
 app.use(express.static("public"));
 
 
-const port = Number(process.env.PORT) || 3000;
+const port = Number(process.env.PORT) || 5000;
 
 app.get("/",async(req,res)=>{
     return res.render("home.ejs");
