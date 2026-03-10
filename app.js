@@ -36,11 +36,17 @@ app.get("/dashboard", async (req, res) => {
 });
 
 
-app.put("/edit/:id", async(req,res)=>{
+app.post("/confirm/modify/:id", async(req,res)=>{
 
     const {scheduled_check_in_date, scheduled_check_in_time, luggae_info, image} = req.body;
     const {data,error} = await supabase.from("checkin").update({scheduled_check_in_date:scheduled_check_in_date,scheduled_check_in_time:scheduled_check_in_time,luggage_info:luggae_info,image:image}).eq("id",req.params.id);
     return res.redirect("/dashboard?message=Scheduled Check-In Updated Succesfully!");
+})
+
+
+app.get("/modify/:id", async(req,res)=>{
+    const { data, error } = await supabase.from("checkin").select("*").eq("id",req.params.id);
+    res.render("edit.ejs",{data});
 })
 
 app.post("/schedule-check-in", async (req, res) => {

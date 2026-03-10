@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles.css">
+    <title>Document</title>
+</head>
+<body>
+    <%- include('partials/navbar') %>
+    <div class="container">
+        <h4>Modify Scheduled Check-In</h4><hr>
+
+
+        <form action="/confirm/modify/<%=data.id%>" method="POST">
+             <form action="/schedule-check-in" method="POST">
+  <div class="mb-3">
+
+        <label class="form-label" >Check In Date</label>
+        <input type="date" value="<%= data.scheduled_check_in_date %>" required min="2026-04-21" class="form-control" name="check_in_date">
+
+        </div>    <div class="mb-3">
+ <label class="form-label">Check In Time</label>
+
+        <input type="time" required min="10:00" max="17:00" step="60" class="form-control" name="check_in_time">
+                </div>   <div class="mb-3">
+<label class="form-label">Luggage Information</label>
+
+        <textarea class="form-control" name="luggage_info" placeholder="Mention the Luggage Type along with the Quantity. Example: 1 Bucket, 1 Mattress, 2 Carton Box"></textarea>
+                 </div>  <div class="mb-3">
+<label class="form-label">Image of Luggae</label>
+
+        <input class="form-control" type="file" name="image"></div> 
+        <button type="submit" class="btn btn-primary">Schedule Check-In <i class="bi bi-check-circle-fill"></i></button>
+
+    </form>
+        </form>
+
+    </div>
+    
+</body>
+<script src="/script.js"></script>
+</html>

@@ -25,3 +25,16 @@
     }
   });
 }
+
+
+function showGuidelines(){
+  Swal.fire({
+  title: "Guidelines",
+  icon: "info",
+  html: `
+  <p align="justify">
+  Guidelines will be updated shortly. Stay Tuned!
+  </p>
+  `
+});
+}
