@@ -6,27 +6,12 @@ import session from "express-session";
 import { fileURLToPath } from "url";
 import path from "path";
 import multer from 'multer';
-import prismaPkg from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
-
-
-
+import { createClient } from '@supabase/supabase-js'
 
 dotenv.config();
 
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
 
-
-const { PrismaClient } = prismaPkg;
-const { Pool } = pg;
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
-
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({ adapter });
 const app = express();
 app.use(express.static("public"));
 const upload = multer({ storage: multer.memoryStorage() });
