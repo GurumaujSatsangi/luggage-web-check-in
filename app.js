@@ -49,6 +49,11 @@ app.get("/modify/:id", async(req,res)=>{
     res.render("edit.ejs",{data});
 })
 
+app.get("/delete/:id", async(req,res)=>{
+    const {data,error} = await supabase.from("checkin").delete("*").eq("id",req.params.id);
+     return res.redirect("/dashboard?message=Check-In Schedule deleted succesfully!")
+})
+
 app.post("/schedule-check-in", async (req, res) => {
   const {
     scheduled_check_in_date,
