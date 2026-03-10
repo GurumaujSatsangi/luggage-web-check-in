@@ -12,8 +12,11 @@
 <body>
         <%- include('partials/navbar.ejs') %>
         <div class="container">
-
-                <div class="card">
+                <% if(!data && data.length==0) { %>
+                
+               
+                
+                                        <div class="card">
   <div class="card-header">
     <b>Schedule Check-In</b>
   </div>
@@ -43,6 +46,11 @@
 </div>
 
 <hr>
+
+                <% } %>
+
+
+
 <h4>My Scheduled Check-In</h4>
 
 <% if(data && data.length>0) { %>
@@ -66,12 +74,43 @@
 
         <tr>
                 <td><%= data.scheduled_check_in_date %> | <%= data.scheduled_check_in_time %></td>
-                <td><%= data.check_in_date %> | <%= data.check_in_time %></td>
-                <td><%= data.received_by %></td>
+
+                <% if(data.check_in_date && data.check_in_time) { %>
+                                <td><%= data.check_in_date %> | <%= data.check_in_time %></td>
+
+                <% } else { %> 
+                        <td><i class="bi bi-slash-circle-fill"></i></td>
+                <% } %>
+
+
+                  <% if(data.received_by ) { %>
+                                <td><%= data.received_by %></td>
+
+                <% } else { %> 
+                        <td><i class="bi bi-slash-circle-fill"></i></td>
+                <% } %>
+
+
+               
                 <td><%= data.luggage_info %></td>
                 <td><%= data.image %></td>
-                <td><%= data.check_out_date %> | <%= data.check_out_time %></td>
-                <td><%= data.released_by %></td>
+
+                 <% if( data.check_out_date&& data.check_out_time ) { %>
+                                <td><%= data.check_out_date %> | <%= data.check_out_time %></td>
+
+                <% } else { %> 
+                        <td><i class="bi bi-slash-circle-fill"></i></td>
+                <% } %>
+
+
+                <% if( data.released_by ) { %>
+                                <td><%= data.released_by %></td>
+
+                <% } else { %> 
+                        <td><i class="bi bi-slash-circle-fill"></i></td>
+                <% } %>
+
+              
                 <td><a class="btn btn-outline-primary" href="/modify/<%= data.id %>"><i class="bi bi-pencil-square"></i> Modify</a></td>
         </tr>
 
