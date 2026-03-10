@@ -35,6 +35,4 @@ app.post("/schedule-check-in", async(req,res)=>{
 
 })
 
-app.listen(port, ()=>{
-    console.log("Running on Port " + port);
-})
+app.listen(port)
