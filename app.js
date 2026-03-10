@@ -43,6 +43,14 @@ app.post("/confirm/modify/:id", async(req,res)=>{
     return res.redirect("/dashboard?message=Scheduled Check-In Updated Succesfully!");
 })
 
+const today = new Date();
+const isoDate = today.toISOString().slice(0, 10);
+
+app.get("/supervisor/dashboard", async(req,res)=>{
+
+  const {data, error} = await supabase.from("checkin").select("*").neq("status","LUGGAGE CHECKED-IN").eq("scheduled_check_in_date",isoDate);
+  return res.render("supervisor.ejs",{data});
+})
 
 app.get("/modify/:id", async(req,res)=>{
     const { data, error } = await supabase.from("checkin").select("*").eq("id",req.params.id).single();
@@ -52,6 +60,15 @@ app.get("/modify/:id", async(req,res)=>{
 app.get("/delete/:id", async(req,res)=>{
     const {data,error} = await supabase.from("checkin").delete("*").eq("id",req.params.id);
      return res.redirect("/dashboard?message=Check-In Schedule deleted succesfully!")
+})
+
+
+app.get("/check-in/:id", async(req,res)=>{
+
+  const {data,error} = await supabase.from("checkin").update({"status":"LUGGAGE CHECKED-IN"}).eq("id",req.params.id);
+
+  return res.redirect("/supervisor/dashboard?message=Luggage Checked-In!")
+
 })
 
 app.post("/schedule-check-in", async (req, res) => {
