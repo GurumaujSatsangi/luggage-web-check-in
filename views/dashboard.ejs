@@ -4,31 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Luggage Web Check In Portal | VIT Vellore</title>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
         <%- include('partials/navbar.ejs') %>
+        <div class="container">
+
+
+                <div class="card">
+  <div class="card-header">
+    <b>Schedule Check-In</b>
+  </div>
+  <div class="card-body">
     <form action="/checkin" method="POST">
+  <div class="mb-3">
 
-        <label>Check In Date</label>
-        <input type="date" name="check_in_date">
-                <label>Check In Date</label>
+        <label class="form-label" >Check In Date</label>
+        <input type="date" class="form-control" name="check_in_date">
 
-        <input type="date" name="check_out_date">
-                <label>Check In Date</label>
+        </div>    <div class="mb-3">
+ <label class="form-label">Check In Time</label>
 
-        <input type="time" name="check_in_time">
-                <label>Check In Date</label>
+        <input type="time" class="form-control" name="check_in_time">
+                </div>   <div class="mb-3">
+<label class="form-label">Luggage Information</label>
 
-        <input type="time" name="check_out_time">
-                <label>Check In Date</label>
+        <textarea class="form-control" name="luggage_info"></textarea>
+                 </div>  <div class="mb-3">
+<label class="form-label">Image of Luggae</label>
 
-        <textarea name="luggage_info"></textarea>
-                <label>Check In Date</label>
-
-        <input type="file" name="image">
-        <input type="submit" value="Schedule Check-In">
+        <input class="form-control" type="file" name="image"></div> 
+        <button type="submit" class="btn btn-primary">Schedule Check-In <i class="bi bi-check-circle-fill"></i></button>
 
     </form>
+  </div>
+</div>
+
+<hr>
+
+<table class="table">
+
+        <tr>    
+                <th>Scheduled Check-In Date & Time</th>
+                <th>Check-In Date & Time</th>
+                <th>Received By</th>
+                <th>Luggage Information</th>
+                <th>Image of Luggage</th>
+                <th>Check-Out Date & Time</th>
+                <th>Released By</th>
+
+        </tr>
+        
+</table>
+        
+   
+
+    </div>
     
 </body>
 </html>
