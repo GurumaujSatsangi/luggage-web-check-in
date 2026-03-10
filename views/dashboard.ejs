@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Luggage Web Check In Portal | VIT Vellore</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 </head>
 <body>
         <%- include('partials/navbar.ejs') %>
@@ -16,7 +18,7 @@
     <b>Schedule Check-In</b>
   </div>
   <div class="card-body">
-    <form action="/checkin" method="POST">
+    <form action="/schedule-check-in" method="POST">
   <div class="mb-3">
 
         <label class="form-label" >Check In Date</label>
@@ -42,7 +44,10 @@
 
 <hr>
 
-<table class="table">
+
+<% if(data && data.length>0) { %>
+
+        <table class="table">
 
         <tr>    
                 <th>Scheduled Check-In Date & Time</th>
@@ -55,6 +60,30 @@
 
         </tr>
         
+
+<% data.forEach(function(data){ %>
+
+        <tr>
+                <td><%= data.scheduled_check_in_date %> | <%= data.scheduled_check_in_time %></td>
+                <td><%= data.check_in_date %> | <%= data.check_in_time %></td>
+                <td><%= data.received_by %></td>
+                <td><%= data.luggage_info %></td>
+                <td><%= data.image %></td>
+                <td><%= data.check_out_date %> | <%= data.check_out_time %></td>
+                <td><%= data.released_by %></td>
+        </tr>
+
+
+
+<% }) %>
+
+
+<%  } %>
+
+
+
+
+
 </table>
         
    
@@ -62,4 +91,8 @@
     </div>
     
 </body>
+
+<script src="/script.js"></script>
+
+
 </html>

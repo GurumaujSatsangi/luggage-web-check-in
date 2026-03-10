@@ -27,11 +27,22 @@ app.get("/",async(req,res)=>{
 })
 
 app.get("/dashboard",async(req,res)=>{
-    return res.render("dashboard.ejs");
+    const message = req.query;
+    const {data,error} = await supabase.from("checkin").select("*");
+
+    return res.render("dashboard.ejs",{data,message: message || null });
 })
 
 app.post("/schedule-check-in", async(req,res)=>{
     const {check_in_date, check_out_date, check_in_time, check_out_time, luggage_info, image} = req.body;
+
+    const {data,error} = await supabase.from("checkin").insert({scheduled_check_in_date: check_in_date, scheduled_check_in_time:check_in_time,luggage_info:luggage_info});
+
+    if(error){
+        return res.redirect("/dashboard?message=Some error occured, please try again!");
+    }
+
+    return res.redirect("/dashboard?message=Check-In Scheduled Succesfully!");
 
 })
 
