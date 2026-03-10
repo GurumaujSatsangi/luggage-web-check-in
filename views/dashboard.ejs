@@ -22,16 +22,16 @@
   <div class="mb-3">
 
         <label class="form-label" >Check In Date</label>
-        <input type="date" class="form-control" name="check_in_date">
+        <input type="date" required min="2026-04-21" class="form-control" name="check_in_date">
 
         </div>    <div class="mb-3">
  <label class="form-label">Check In Time</label>
 
-        <input type="time" class="form-control" name="check_in_time">
+        <input type="time" required min="10:00" max="17:00" step="60" class="form-control" name="check_in_time">
                 </div>   <div class="mb-3">
 <label class="form-label">Luggage Information</label>
 
-        <textarea class="form-control" name="luggage_info"></textarea>
+        <textarea class="form-control" name="luggage_info" placeholder="Mention the Luggage Type along with the Quantity. Example: 1 Bucket, 1 Mattress, 2 Carton Box"></textarea>
                  </div>  <div class="mb-3">
 <label class="form-label">Image of Luggae</label>
 
@@ -43,7 +43,7 @@
 </div>
 
 <hr>
-
+<h4>My Scheduled Check-In</h4>
 
 <% if(data && data.length>0) { %>
 
@@ -57,6 +57,7 @@
                 <th>Image of Luggage</th>
                 <th>Check-Out Date & Time</th>
                 <th>Released By</th>
+                <th>Action</th>
 
         </tr>
         
@@ -71,6 +72,7 @@
                 <td><%= data.image %></td>
                 <td><%= data.check_out_date %> | <%= data.check_out_time %></td>
                 <td><%= data.released_by %></td>
+                <td><a href="/edit/<%= data.id %>">Edit</a></td>
         </tr>
 
 
@@ -78,7 +80,9 @@
 <% }) %>
 
 
-<%  } %>
+<%  } else { %>
+        <h6>You have not scheduled your Check-In!</h6>
+        <% } %>
 
 
 
