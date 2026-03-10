@@ -45,7 +45,7 @@ app.post("/confirm/modify/:id", async(req,res)=>{
 
 
 app.get("/modify/:id", async(req,res)=>{
-    const { data, error } = await supabase.from("checkin").select("*").eq("id",req.params.id);
+    const { data, error } = await supabase.from("checkin").select("*").eq("id",req.params.id).single();
     res.render("edit.ejs",{data});
 })
 

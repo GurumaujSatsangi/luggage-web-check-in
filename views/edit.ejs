@@ -22,13 +22,18 @@
         </div>    <div class="mb-3">
  <label class="form-label">Check In Time</label>
 
-        <input type="time" required min="10:00" max="17:00" step="60" class="form-control" name="check_in_time">
+        <input type="time" required value="<%= data.scheduled_check_in_time %>" min="10:00" max="17:00" step="60" class="form-control" name="check_in_time">
                 </div>   <div class="mb-3">
 <label class="form-label">Luggage Information</label>
 
-        <textarea class="form-control" name="luggage_info" placeholder="Mention the Luggage Type along with the Quantity. Example: 1 Bucket, 1 Mattress, 2 Carton Box"></textarea>
-                 </div>  <div class="mb-3">
-<label class="form-label">Image of Luggae</label>
+        <textarea class="form-control" name="luggage_info" placeholder="Mention the Luggage Type along with the Quantity. Example: 1 Bucket, 1 Mattress, 2 Carton Box"><%= data.luggage_info %></textarea>
+        
+    
+    </div>  
+                 
+                 
+                 <div class="mb-3">
+<label class="form-label">Image of Luggage</label>
 
         <input class="form-control" type="file" name="image"></div> 
         <button type="submit" class="btn btn-primary">Schedule Check-In <i class="bi bi-check-circle-fill"></i></button>
