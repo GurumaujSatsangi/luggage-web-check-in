@@ -38,8 +38,8 @@ app.get("/dashboard", async (req, res) => {
 
 app.post("/confirm/modify/:id", async(req,res)=>{
 
-    const {scheduled_check_in_date, scheduled_check_in_time, luggae_info, image} = req.body;
-    const {data,error} = await supabase.from("checkin").update({scheduled_check_in_date:scheduled_check_in_date,scheduled_check_in_time:scheduled_check_in_time,luggage_info:luggae_info,image:image}).eq("id",req.params.id);
+    const {scheduled_check_in_date, scheduled_check_in_time, luggage_info} = req.body;
+    const {data,error} = await supabase.from("checkin").update({scheduled_check_in_date:scheduled_check_in_date,scheduled_check_in_time:scheduled_check_in_time,luggage_info:luggage_info}).eq("id",req.params.id);
     return res.redirect("/dashboard?message=Scheduled Check-In Updated Succesfully!");
 })
 
@@ -51,10 +51,10 @@ app.get("/modify/:id", async(req,res)=>{
 
 app.post("/schedule-check-in", async (req, res) => {
   const {
-    check_in_date,
-    check_out_date,
-    check_in_time,
-    check_out_time,
+    scheduled_check_in_date,
+ 
+    scheduled_check_in_time,
+   
     luggage_info,
     image,
   } = req.body;
@@ -62,8 +62,8 @@ app.post("/schedule-check-in", async (req, res) => {
   const { data, error } = await supabase
     .from("checkin")
     .insert({
-      scheduled_check_in_date: check_in_date,
-      scheduled_check_in_time: check_in_time,
+      scheduled_check_in_date: scheduled_check_in_date,
+      scheduled_check_in_time: scheduled_check_in_time,
       luggage_info: luggage_info,
     });
 
