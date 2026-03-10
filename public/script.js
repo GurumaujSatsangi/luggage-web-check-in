@@ -6,8 +6,8 @@
     
     if (message && typeof Swal !== 'undefined') {
       Swal.fire({
-        icon: 'success',
-        title: 'Success!',
+        icon: 'info',
+        title: 'Alert',
         text: decodeURIComponent(message),
         confirmButtonColor: '#6366f1'
       });

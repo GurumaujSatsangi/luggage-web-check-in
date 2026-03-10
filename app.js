@@ -81,6 +81,14 @@ app.post("/schedule-check-in", async (req, res) => {
     image,
   } = req.body;
 
+  if(scheduled_check_in_date < isoDate){
+    return res.redirect("/dashboard?message=Luggage Check-In cannot be scheduled for past dates. Luggage Check-In for the next day will close today at 11:59 PM.")
+  }
+
+  if(scheduled_check_in_date == isoDate){
+    return res.redirect("/dashboard?message=Luggage Check-In cannot be scheduled for the same day. Luggage Check-In for the next day will close today at 11:59 PM.")
+  }
+
   const { data, error } = await supabase
     .from("checkin")
     .insert({
