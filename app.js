@@ -58,6 +58,14 @@ const getSupervisorEmails = () =>
     .map((email) => email.trim())
     .filter(Boolean);
 
+const getStudentByEmail = async (email) => {
+  return supabase
+    .from("students")
+    .select("id, name, email_id, registration_number, current_block, current_room_number, allotted_block, allotted_room_number, dormitory")
+    .eq("email_id", email)
+    .maybeSingle();
+};
+
 const isMissingColumnError = (error, columnName) => {
   const errorText = [error?.message, error?.details, error?.hint]
     .filter(Boolean)
@@ -168,11 +176,19 @@ const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_i
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
 
-const requireAuth = (req, res, next) => {
+const requireAuth = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect("/");
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const { data: student, error } = await getStudentByEmail(req.user.email);
+    if (error || !student) {
+      res.clearCookie("token");
+      return res.redirect(
+        "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
+      );
+    }
+    req.user.student = student;
     next();
   } catch {
     res.clearCookie("token");
@@ -180,11 +196,19 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-const requireSupervisor = (req, res, next) => {
+const requireSupervisor = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect("/");
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const { data: student, error } = await getStudentByEmail(req.user.email);
+    if (error || !student) {
+      res.clearCookie("token");
+      return res.redirect(
+        "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
+      );
+    }
+    req.user.student = student;
     const supervisorEmails = getSupervisorEmails();
     if (!supervisorEmails.includes(req.user.email)) {
       return res.status(403).send("Access denied: Supervisors only.");
@@ -207,7 +231,7 @@ app.get(
 app.get(
   "/auth/google/callback",
   passport.authenticate("google", { failureRedirect: "/" }),
-  (req, res) => {
+  async (req, res) => {
     const profile = req.user;
     const userEmail = profile.emails?.[0]?.value;
     const userPicture = profile.photos?.[0]?.value || "";
@@ -216,12 +240,29 @@ app.get(
       return res.redirect("/?message=Google account email is required for login.");
     }
 
+    const { data: student, error: studentError } = await getStudentByEmail(userEmail);
+
+    if (studentError) {
+      return res.redirect(
+        `/?message=${encodeURIComponent(studentError.message || "Unable to verify student account.")}`,
+      );
+    }
+
+    if (!student) {
+      return res.redirect(
+        "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
+      );
+    }
+
     const token = jwt.sign(
       {
         id: profile.id,
-        name: profile.displayName,
+        name: student.name || profile.displayName,
         email: userEmail,
         picture: userPicture,
+        registrationNumber: student.registration_number,
+        dormitory: student.dormitory,
+        studentId: student.id,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" },
@@ -250,6 +291,7 @@ app.get("/logout", (req, res) => {
 
 app.get("/", (req, res) => {
   const token = req.cookies.token;
+  const message = req.query.message || null;
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -262,7 +304,7 @@ app.get("/", (req, res) => {
       res.clearCookie("token");
     }
   }
-  return res.render("home.ejs");
+  return res.render("home.ejs", { message });
 });
 
 // ── Protected routes ──────────────────────────────────────────────────────────
