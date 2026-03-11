@@ -15,22 +15,35 @@
 
                 <div class="card">
                         <div class="card-header">
-                                <b>My Profile</b>
+                                <b>My Hostel Details</b>
                         </div>
                           <div class="card-body">
-                                <table>
-                                        <tr>
-                                                <th>Current Block</th>
-                                                <th>Current Room Number</th>
-                                        </tr>
-                                        <tr>
-                                                <td>
-                                                        <%= user.
-                                                </td>
-                                        </tr>
-                                </table>
-
-</div>
+                                <div class="row g-3">
+                                       
+                                        
+                                       
+                                        <div class="col-md-4">
+                                                <div><strong>Dormitory</strong></div>
+                                                <div><%= user.dormitory || '-' %></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                                <div><strong>Current Block</strong></div>
+                                                <div><%= user.current_block || '-' %></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                                <div><strong>Current Room Number</strong></div>
+                                                <div><%= user.current_room_number || '-' %></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                                <div><strong>Allotted Block</strong></div>
+                                                <div><%= user.allotted_block || '-' %></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                                <div><strong>Allotted Room Number</strong></div>
+                                                <div><%= user.allotted_room_number || '-' %></div>
+                                        </div>
+                                </div>
+                        </div>
 
                 </div>
                 <% if(data.length===0) { %>

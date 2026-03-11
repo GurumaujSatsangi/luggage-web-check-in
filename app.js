@@ -180,15 +180,26 @@ const requireAuth = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect("/");
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    const { data: student, error } = await getStudentByEmail(req.user.email);
+    const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
+    const { data: student, error } = await getStudentByEmail(decodedUser.email);
     if (error || !student) {
       res.clearCookie("token");
       return res.redirect(
         "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
       );
     }
-    req.user.student = student;
+    req.user = {
+      ...decodedUser,
+      student,
+      name: student.name || decodedUser.name,
+      email: student.email_id || decodedUser.email,
+      registrationNumber: student.registration_number,
+      current_block: student.current_block,
+      current_room_number: student.current_room_number,
+      allotted_block: student.allotted_block,
+      allotted_room_number: student.allotted_room_number,
+      dormitory: student.dormitory,
+    };
     next();
   } catch {
     res.clearCookie("token");
@@ -200,15 +211,26 @@ const requireSupervisor = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect("/");
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    const { data: student, error } = await getStudentByEmail(req.user.email);
+    const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
+    const { data: student, error } = await getStudentByEmail(decodedUser.email);
     if (error || !student) {
       res.clearCookie("token");
       return res.redirect(
         "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
       );
     }
-    req.user.student = student;
+    req.user = {
+      ...decodedUser,
+      student,
+      name: student.name || decodedUser.name,
+      email: student.email_id || decodedUser.email,
+      registrationNumber: student.registration_number,
+      current_block: student.current_block,
+      current_room_number: student.current_room_number,
+      allotted_block: student.allotted_block,
+      allotted_room_number: student.allotted_room_number,
+      dormitory: student.dormitory,
+    };
     const supervisorEmails = getSupervisorEmails();
     if (!supervisorEmails.includes(req.user.email)) {
       return res.status(403).send("Access denied: Supervisors only.");
