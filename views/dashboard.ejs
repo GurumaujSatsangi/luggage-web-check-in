@@ -129,7 +129,7 @@
 
                
                 <td><%= data.luggage_info %></td>
-                <td><a target="_blank" href="<%= data.image %>"><i class="bi bi-eye-fill"></i></a></td>
+                <td><a href="<%= data.image %>" onclick="window.open('<%= data.image %>', '_blank', 'width=500,height=500,left=500,top=200'); return false;"><i class="bi bi-eye-fill"></i></a></td>
 
                  <% if( data.check_out_date&& data.check_out_time ) { %>
                                 <td><%= data.check_out_date %> | <%= data.check_out_time %></td>
