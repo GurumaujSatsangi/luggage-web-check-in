@@ -112,135 +112,6 @@ const isMissingColumnError = (error, columnName) => {
   return errorText.includes(columnName.toLowerCase());
 };
 
-const selectCheckinsByUser = async (email) => {
-  const modernResult = await supabase
-    .from("checkin")
-    .select("*")
-    .eq("user_email", email);
-
-  if (!modernResult.error || !isMissingColumnError(modernResult.error, "user_email")) {
-    return modernResult;
-  }
-
-  return supabase.from("checkin").select("*").eq("email", email);
-};
-
-const selectCheckinByIdForUser = async (id, email) => {
-  const modernResult = await supabase
-    .from("checkin")
-    .select("*")
-    .eq("id", id)
-    .eq("user_email", email)
-    .single();
-
-  if (!modernResult.error || !isMissingColumnError(modernResult.error, "user_email")) {
-    return modernResult;
-  }
-
-  return supabase
-    .from("checkin")
-    .select("*")
-    .eq("id", id)
-    .eq("email", email)
-    .single();
-};
-
-const updateCheckinByIdForUser = async (id, email, values) => {
-  const modernResult = await supabase
-    .from("checkin")
-    .update(values)
-    .eq("id", id)
-    .eq("user_email", email);
-
-  if (!modernResult.error || !isMissingColumnError(modernResult.error, "user_email")) {
-    return modernResult;
-  }
-
-  return supabase.from("checkin").update(values).eq("id", id).eq("email", email);
-};
-
-const deleteCheckinByIdForUser = async (id, email) => {
-  const modernResult = await supabase
-    .from("checkin")
-    .delete()
-    .eq("id", id)
-    .eq("user_email", email);
-
-  if (!modernResult.error || !isMissingColumnError(modernResult.error, "user_email")) {
-    return modernResult;
-  }
-
-  return supabase.from("checkin").delete().eq("id", id).eq("email", email);
-};
-
-// const selectSupervisorCheckinsByDormitory = async ({ scheduledDate, dormitory }) => {
-//   return supabase
-//     .from("checkin")
-//     .select("*")
-//     .eq("scheduled_check_in_date", scheduledDate)
-//     .eq("dormitory", dormitory)
-//     .neq("status", "LUGGAGE CHECKED-IN");
-// };
-
-const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_in_time, luggage_info, user, image }) => {
-  const buildBaseValues = (includeImage) => ({
-    scheduled_check_in_date,
-    scheduled_check_in_time,
-    luggage_info,
-    ...(includeImage ? { image } : {}),
-  });
-
-  const includeImage = Boolean(image);
-  let baseValues = buildBaseValues(includeImage);
-
-  let withUserEmailAndName = await supabase.from("checkin").insert({
-    ...baseValues,
-    user_email: user.email,
-    user_name: user.name,
-  });
-
-  if (includeImage && isMissingColumnError(withUserEmailAndName.error, "image")) {
-    baseValues = buildBaseValues(false);
-    withUserEmailAndName = await supabase.from("checkin").insert({
-      ...baseValues,
-      user_email: user.email,
-      user_name: user.name,
-    });
-  }
-
-  if (!withUserEmailAndName.error) {
-    return withUserEmailAndName;
-  }
-
-  if (!isMissingColumnError(withUserEmailAndName.error, "user_name")) {
-    if (!isMissingColumnError(withUserEmailAndName.error, "user_email")) {
-      return withUserEmailAndName;
-    }
-  }
-
-  let withUserEmailOnly = await supabase.from("checkin").insert({
-    ...baseValues,
-    user_email: user.email,
-  });
-
-  if (includeImage && isMissingColumnError(withUserEmailOnly.error, "image")) {
-    baseValues = buildBaseValues(false);
-    withUserEmailOnly = await supabase.from("checkin").insert({
-      ...baseValues,
-      user_email: user.email,
-    });
-  }
-
-  if (!withUserEmailOnly.error || !isMissingColumnError(withUserEmailOnly.error, "user_email")) {
-    return withUserEmailOnly;
-  }
-
-  return supabase.from("checkin").insert({
-    ...baseValues,
-    email: user.email,
-  });
-};
-
 // ── Auth middleware ──────────────────────────────────────────────────────────
 
 const requireAuth = async (req, res, next) => {
@@ -351,6 +222,19 @@ app.get("/logout", (req, res) => {
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 
+const today = new Date();
+const isoDate = today.toLocaleDateString("en-CA", {
+  timeZone: "Asia/Kolkata",
+});
+
+ const todayIsoDate = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
+  });
+
+  let now = new Date();
+let currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+
 app.get("/", (req, res) => {
   const token = req.cookies.token;
   const message = req.query.message || null;
@@ -430,7 +314,25 @@ app.post("/supervisor/login", async (req, res) => {
 
 app.get("/dashboard", requireAuth, async (req, res) => {
   const message = req.query;
-  const { data, error } = await selectCheckinsByUser(req.user.email);
+  let { data, error } = await supabase
+    .from("checkin")
+    .select("*")
+    .eq("user_email", req.user.email);
+
+  if (error && isMissingColumnError(error, "user_email")) {
+    const legacyResult = await supabase
+      .from("checkin")
+      .select("*")
+      .eq("email", req.user.email);
+    data = legacyResult.data;
+    error = legacyResult.error;
+  }
+
+  if (error) {
+    return res.redirect(
+      `/dashboard?message=${encodeURIComponent(error.message || "Unable to fetch check-ins.")}`,
+    );
+  }
 
   return res.render("dashboard.ejs", {
     data: data || [],
@@ -442,30 +344,54 @@ app.get("/dashboard", requireAuth, async (req, res) => {
 app.post("/confirm/modify/:id", requireAuth, async (req, res) => {
   const { scheduled_check_in_date, scheduled_check_in_time, luggage_info } =
     req.body;
-  await updateCheckinByIdForUser(req.params.id, req.user.email, {
+  const values = {
     scheduled_check_in_date,
     scheduled_check_in_time,
     luggage_info,
-  });
+  };
+
+  let { error } = await supabase
+    .from("checkin")
+    .update(values)
+    .eq("id", req.params.id)
+    .eq("user_email", req.user.email);
+
+  if (error && isMissingColumnError(error, "user_email")) {
+    const legacyResult = await supabase
+      .from("checkin")
+      .update(values)
+      .eq("id", req.params.id)
+      .eq("email", req.user.email);
+    error = legacyResult.error;
+  }
+
+  if (error) {
+    return res.redirect(
+      `/dashboard?message=${encodeURIComponent(error.message || "Unable to update check-in.")}`,
+    );
+  }
+
   return res.redirect("/dashboard?message=Scheduled Check-In Updated Successfully!");
 });
 
-const today = new Date();
-const isoDate = today.toLocaleDateString("en-CA", {
-  timeZone: "Asia/Kolkata",
-});
+
 
 app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
-  const todayIsoDate = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Asia/Kolkata",
-  });
+ 
   const supervisorDormitory = (req.user.assignedDormitory || req.user.assigned_dormitory || "").trim();
 
   const { data, error } = await supabase
     .from("checkin")
     .select("*")
     .eq("scheduled_check_in_date", todayIsoDate)
-    .neq("status", "LUGGAGE CHECKED-IN")
+    .neq("status","LUGGAGE CHECKED-IN")
+    .neq("status","LUGGAGE CHECKED-OUT")
+    .eq("dormitory", supervisorDormitory);
+
+  const { data: checkoutData, error: checkoutError } = await supabase
+    .from("checkin")
+    .select("*")
+    .eq("status", "LUGGAGE CHECKED-IN")
     .eq("dormitory", supervisorDormitory);
 
   if (error) {
@@ -474,15 +400,28 @@ app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
     );
   }
 
+  if (checkoutError) {
+    return res.redirect(
+      `/supervisor/login?message=${encodeURIComponent(checkoutError.message || "Unable to fetch checkout data.")}`,
+    );
+  }
+
   const checkins = data || [];
-  const emails = [...new Set(checkins.map((item) => item.email).filter(Boolean))];
+  const checkouts = checkoutData || [];
+  const allEmails = [
+    ...new Set(
+      [...checkins, ...checkouts]
+        .map((item) => item.user_email || item.email)
+        .filter(Boolean),
+    ),
+  ];
 
   let studentByEmail = new Map();
-  if (emails.length > 0) {
+  if (allEmails.length > 0) {
     const { data: students, error: studentError } = await supabase
       .from("students")
       .select("email_id, name, registration_number")
-      .in("email_id", emails);
+      .in("email_id", allEmails);
 
     if (studentError) {
       return res.redirect(
@@ -494,7 +433,7 @@ app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
   }
 
   const enrichedCheckins = checkins.map((item) => {
-    const student = studentByEmail.get(item.email);
+    const student = studentByEmail.get(item.user_email || item.email);
     return {
       ...item,
       student_name: student?.name || "N/A",
@@ -502,11 +441,42 @@ app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
     };
   });
 
-  return res.render("supervisor.ejs", { data: enrichedCheckins, user: req.user });
+  const enrichedCheckouts = checkouts.map((item) => {
+    const student = studentByEmail.get(item.user_email || item.email);
+    return {
+      ...item,
+      student_name: student?.name || "N/A",
+      registration_number: student?.registration_number || "N/A",
+    };
+  });
+
+  return res.render("supervisor.ejs", { data: enrichedCheckins, enrichedCheckouts, user: req.user });
 });
 
 app.get("/modify/:id", requireAuth, async (req, res) => {
-  const { data, error } = await selectCheckinByIdForUser(req.params.id, req.user.email);
+  let { data, error } = await supabase
+    .from("checkin")
+    .select("*")
+    .eq("id", req.params.id)
+    .eq("user_email", req.user.email)
+    .single();
+
+  if (error && isMissingColumnError(error, "user_email")) {
+    const legacyResult = await supabase
+      .from("checkin")
+      .select("*")
+      .eq("id", req.params.id)
+      .eq("email", req.user.email)
+      .single();
+    data = legacyResult.data;
+    error = legacyResult.error;
+  }
+
+  if (error || !data) {
+    return res.redirect(
+      `/dashboard?message=${encodeURIComponent(error?.message || "Unable to fetch check-in details.")}`,
+    );
+  }
 
   const scheduled_check_in_date = data.scheduled_check_in_date;
 
@@ -529,16 +499,46 @@ app.get("/modify/:id", requireAuth, async (req, res) => {
 });
 
 app.get("/delete/:id", requireAuth, async (req, res) => {
-  await deleteCheckinByIdForUser(req.params.id, req.user.email);
+  let { error } = await supabase
+    .from("checkin")
+    .delete()
+    .eq("id", req.params.id)
+    .eq("user_email", req.user.email);
+
+  if (error && isMissingColumnError(error, "user_email")) {
+    const legacyResult = await supabase
+      .from("checkin")
+      .delete()
+      .eq("id", req.params.id)
+      .eq("email", req.user.email);
+    error = legacyResult.error;
+  }
+
+  if (error) {
+    return res.redirect(
+      `/dashboard?message=${encodeURIComponent(error.message || "Unable to delete check-in.")}`,
+    );
+  }
+
   return res.redirect("/dashboard?message=Check-In Schedule deleted successfully!");
 });
 
 app.get("/check-in/:id", requireSupervisorAuth, async (req, res) => {
   await supabase
     .from("checkin")
-    .update({ status: "LUGGAGE CHECKED-IN" })
+    .update({ status: "LUGGAGE CHECKED-IN",check_in_date:todayIsoDate,check_in_time:currentTime,received_by:req.user.name })
     .eq("id", req.params.id);
   return res.redirect("/supervisor/dashboard?message=Luggage Checked-In!");
+});
+
+
+app.get("/check-out/:id", requireSupervisorAuth, async (req, res) => {
+
+  await supabase
+    .from("checkin")
+    .update({ status: "LUGGAGE CHECKED-OUT",check_out_date:todayIsoDate,check_out_time:currentTime,release_by:req.user.name })
+    .eq("id", req.params.id);
+  return res.redirect("/supervisor/dashboard?message=Luggage Checked-Out!");
 });
 
 const s3 = new AWS.S3({
@@ -589,15 +589,55 @@ app.post("/schedule-check-in", upload.single('image'), requireAuth, async (req, 
     }
   }
 
-
-
-  const { error } = await insertCheckinForUser({
+  const buildBaseValues = (includeImage) => ({
     scheduled_check_in_date,
     scheduled_check_in_time,
     luggage_info,
-    user: req.user,
-    image: publicUrl,
+    dormitory: req.user.dormitory,
+    ...(includeImage ? { image: publicUrl } : {}),
   });
+
+  const includeImage = Boolean(publicUrl);
+  let baseValues = buildBaseValues(includeImage);
+
+  let insertResult = await supabase.from("checkin").insert({
+    ...baseValues,
+    user_email: req.user.email,
+    user_name: req.user.name,
+  });
+
+  if (includeImage && isMissingColumnError(insertResult.error, "image")) {
+    baseValues = buildBaseValues(false);
+    insertResult = await supabase.from("checkin").insert({
+      ...baseValues,
+      user_email: req.user.email,
+      user_name: req.user.name,
+    });
+  }
+
+  if (insertResult.error && isMissingColumnError(insertResult.error, "user_name")) {
+    insertResult = await supabase.from("checkin").insert({
+      ...baseValues,
+      user_email: req.user.email,
+    });
+
+    if (includeImage && isMissingColumnError(insertResult.error, "image")) {
+      baseValues = buildBaseValues(false);
+      insertResult = await supabase.from("checkin").insert({
+        ...baseValues,
+        user_email: req.user.email,
+      });
+    }
+  }
+
+  if (insertResult.error && isMissingColumnError(insertResult.error, "user_email")) {
+    insertResult = await supabase.from("checkin").insert({
+      ...baseValues,
+      email: req.user.email,
+    });
+  }
+
+  const error = insertResult.error;
 
   if (error) {
     return res.redirect(
