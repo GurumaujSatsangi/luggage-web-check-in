@@ -17,6 +17,7 @@
     "@prisma/client": "^7.4.2",
     "@supabase/supabase-js": "^2.99.0",
     "aws-sdk": "^2.1693.0",
+    "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",

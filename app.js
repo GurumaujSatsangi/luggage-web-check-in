@@ -12,6 +12,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
+import bcrypt from "bcrypt";
 
 dotenv.config();
 
@@ -52,12 +53,40 @@ passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
 const port = Number(process.env.PORT) || 5000;
+const supervisorTokenCookie = "supervisor_token";
 
-const getSupervisorEmails = () =>
-  (process.env.SUPERVISOR_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim())
-    .filter(Boolean);
+const getSupervisorByEmployeeId = async (employeeId) => {
+  return supabase
+    .from("supervisors")
+    .select("emp_id, name, assigned_dormitory, password")
+    .eq("emp_id", employeeId)
+    .maybeSingle();
+};
+
+const createSupervisorToken = (supervisor) => {
+  return jwt.sign(
+    {
+      name: supervisor.name || `Supervisor ${supervisor.emp_id}`,
+      employeeId: supervisor.emp_id,
+      assignedDormitory: supervisor.assigned_dormitory,
+      role: "supervisor",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
+};
+
+const parseSupervisorToken = (token) => {
+  if (!token) return null;
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== "supervisor") return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+};
 
 const getStudentByEmail = async (email) => {
   return supabase
@@ -65,6 +94,13 @@ const getStudentByEmail = async (email) => {
     .select("id, name, email_id, registration_number, current_block, current_room_number, allotted_block, allotted_room_number, dormitory")
     .eq("email_id", email)
     .maybeSingle();
+};
+
+const getStudentEmailsByDormitory = async (dormitory) => {
+  return supabase
+    .from("students")
+    .select("email_id")
+    .eq("dormitory", dormitory);
 };
 
 const isMissingColumnError = (error, columnName) => {
@@ -135,6 +171,64 @@ const deleteCheckinByIdForUser = async (id, email) => {
   }
 
   return supabase.from("checkin").delete().eq("id", id).eq("email", email);
+};
+
+const selectSupervisorCheckinsByDormitory = async ({ scheduledDate, dormitory }) => {
+  const normalizedDormitory = (dormitory || "").trim();
+
+  if (!normalizedDormitory) {
+    return supabase
+      .from("checkin")
+      .select("*")
+      .neq("status", "LUGGAGE CHECKED-IN")
+      .eq("scheduled_check_in_date", scheduledDate);
+  }
+
+  const byDormitoryResult = await supabase
+    .from("checkin")
+    .select("*")
+    .neq("status", "LUGGAGE CHECKED-IN")
+    .eq("scheduled_check_in_date", scheduledDate)
+    .eq("dormitory", normalizedDormitory);
+
+  if (!byDormitoryResult.error && (byDormitoryResult.data || []).length > 0) {
+    return byDormitoryResult;
+  }
+
+  if (byDormitoryResult.error && !isMissingColumnError(byDormitoryResult.error, "dormitory")) {
+    return byDormitoryResult;
+  }
+
+  const { data: students, error: studentError } = await getStudentEmailsByDormitory(normalizedDormitory);
+  if (studentError) {
+    return { data: null, error: studentError };
+  }
+
+  const emails = (students || [])
+    .map((student) => student.email_id)
+    .filter(Boolean);
+
+  if (emails.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const byUserEmailResult = await supabase
+    .from("checkin")
+    .select("*")
+    .neq("status", "LUGGAGE CHECKED-IN")
+    .eq("scheduled_check_in_date", scheduledDate)
+    .in("user_email", emails);
+
+  if (!byUserEmailResult.error || !isMissingColumnError(byUserEmailResult.error, "user_email")) {
+    return byUserEmailResult;
+  }
+
+  return supabase
+    .from("checkin")
+    .select("*")
+    .neq("status", "LUGGAGE CHECKED-IN")
+    .eq("scheduled_check_in_date", scheduledDate)
+    .in("email", emails);
 };
 
 const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_in_time, luggage_info, user, image }) => {
@@ -229,44 +323,15 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-const requireSupervisor = async (req, res, next) => {
-  const token = req.cookies.token;
-  if (!token) return res.redirect("/");
-
-  try {
-    const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
-    const supervisorEmails = getSupervisorEmails();
-
-    if (!supervisorEmails.includes(decodedUser.email)) {
-      return res.redirect("/dashboard?message=Unauthorized supervisor access.");
-    }
-
-    const { data: student, error } = await getStudentByEmail(decodedUser.email);
-    if (error || !student) {
-      res.clearCookie("token");
-      return res.redirect(
-        "/?message=Your VIT Email ID is not registered in the students database. Kindly contact the Hostel Administrative Office (cw.mh@vit.ac.in / cw.lh@vit.ac.in / director.mh@vit.ac.in / director.lh@vit.ac.in).",
-      );
-    }
-
-    req.user = {
-      ...decodedUser,
-      student,
-      name: student.name || decodedUser.name,
-      email: student.email_id || decodedUser.email,
-      registrationNumber: student.registration_number,
-      current_block: student.current_block,
-      current_room_number: student.current_room_number,
-      allotted_block: student.allotted_block,
-      allotted_room_number: student.allotted_room_number,
-      dormitory: student.dormitory,
-    };
-
-    next();
-  } catch {
-    res.clearCookie("token");
-    return res.redirect("/");
+const requireSupervisorAuth = (req, res, next) => {
+  const decodedSupervisor = parseSupervisorToken(req.cookies[supervisorTokenCookie]);
+  if (!decodedSupervisor) {
+    res.clearCookie(supervisorTokenCookie);
+    return res.redirect("/supervisor/login?message=Please login to continue.");
   }
+
+  req.user = decodedSupervisor;
+  return next();
 };
 
 // ── OAuth routes ─────────────────────────────────────────────────────────────
@@ -322,17 +387,14 @@ app.get(
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-
-    const supervisorEmails = getSupervisorEmails();
-    if (supervisorEmails.includes(userEmail)) {
-      return res.redirect("/supervisor/dashboard");
-    }
     return res.redirect("/dashboard");
   },
 );
 
 app.get("/logout", (req, res) => {
   res.clearCookie("token");
+  res.clearCookie(supervisorTokenCookie);
+  req.session.supervisor = null;
   req.logout(() => res.redirect("/"));
 });
 
@@ -341,19 +403,76 @@ app.get("/logout", (req, res) => {
 app.get("/", (req, res) => {
   const token = req.cookies.token;
   const message = req.query.message || null;
+  const supervisor = parseSupervisorToken(req.cookies[supervisorTokenCookie]);
+
+  if (supervisor) {
+    return res.redirect("/supervisor/dashboard");
+  }
+
+  if (req.cookies[supervisorTokenCookie]) {
+    res.clearCookie(supervisorTokenCookie);
+  }
+
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const supervisorEmails = getSupervisorEmails();
-      if (supervisorEmails.includes(decoded.email)) {
-        return res.redirect("/supervisor/dashboard");
-      }
+      jwt.verify(token, process.env.JWT_SECRET);
       return res.redirect("/dashboard");
     } catch {
       res.clearCookie("token");
     }
   }
   return res.render("home.ejs", { message });
+});
+
+app.get("/supervisor/login", (req, res) => {
+  const message = req.query.message || null;
+  const supervisor = parseSupervisorToken(req.cookies[supervisorTokenCookie]);
+
+  if (supervisor) {
+    return res.redirect("/supervisor/dashboard");
+  }
+
+  if (req.cookies[supervisorTokenCookie]) {
+    res.clearCookie(supervisorTokenCookie);
+  }
+
+  return res.render("supervisor-login.ejs", { message });
+});
+
+app.post("/supervisor/login", async (req, res) => {
+  const employeeId = (req.body.employee_id || "").trim();
+  const password = (req.body.password || "").trim();
+
+  if (!employeeId || !password) {
+    return res.redirect("/supervisor/login?message=Employee ID and password are required.");
+  }
+
+  const { data: supervisor, error } = await getSupervisorByEmployeeId(employeeId);
+
+  if (error) {
+    return res.redirect(
+      `/supervisor/login?message=${encodeURIComponent(error.message || "Unable to verify supervisor account.")}`,
+    );
+  }
+
+  if (!supervisor) {
+    return res.redirect("/supervisor/login?message=Invalid employee ID or password.");
+  }
+
+  const passwordMatches = await bcrypt.compare(password, supervisor.password || "");
+  if (!passwordMatches) {
+    return res.redirect("/supervisor/login?message=Invalid employee ID or password.");
+  }
+
+  const supervisorToken = createSupervisorToken(supervisor);
+  res.cookie(supervisorTokenCookie, supervisorToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  return res.redirect("/supervisor/dashboard?message=Login successful.");
 });
 
 // ── Protected routes ──────────────────────────────────────────────────────────
@@ -385,13 +504,19 @@ const isoDate = today.toLocaleDateString("en-CA", {
   timeZone: "Asia/Kolkata",
 });
 
-app.get("/supervisor/dashboard", requireSupervisor, async (req, res) => {
-  const { data, error } = await supabase
-    .from("checkin")
-    .select("*")
-    .neq("status", "LUGGAGE CHECKED-IN")
-    .eq("scheduled_check_in_date", isoDate);
-  return res.render("supervisor.ejs", { data, user: req.user });
+app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
+  const { data, error } = await selectSupervisorCheckinsByDormitory({
+    scheduledDate: isoDate,
+    dormitory: req.user.assignedDormitory,
+  });
+
+  if (error) {
+    return res.redirect(
+      `/supervisor/login?message=${encodeURIComponent(error.message || "Unable to fetch supervisor dashboard data.")}`,
+    );
+  }
+
+  return res.render("supervisor.ejs", { data: data || [], user: req.user });
 });
 
 app.get("/modify/:id", requireAuth, async (req, res) => {
@@ -404,7 +529,7 @@ app.get("/delete/:id", requireAuth, async (req, res) => {
   return res.redirect("/dashboard?message=Check-In Schedule deleted successfully!");
 });
 
-app.get("/check-in/:id", requireSupervisor, async (req, res) => {
+app.get("/check-in/:id", requireSupervisorAuth, async (req, res) => {
   await supabase
     .from("checkin")
     .update({ status: "LUGGAGE CHECKED-IN" })
