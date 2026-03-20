@@ -15,6 +15,7 @@
             <table class="table">
                 <tr>
                     <th>Registration Number</th>
+                    <th>Name</th>
                     <th>Luggage Info</th>
                     <th>Image</th>
                     <th colspan="2">Action</th>
@@ -24,17 +25,14 @@
 
                 <tr>
                     <td><%= data.registration_number %></td>
+                    <td><%= data.student_name %></td>
                     <td><%= data.luggage_info %></td>
-                    <td><a class="btn btn-primary" target="_blank" href="<%= data.image %>"><i class="bi bi-eye-fill"></i></a></td>
+                    <td><a class="btn btn-primary" href="<%= data.image %>" onclick="window.open('<%= data.image %>', '_blank', 'width=500,height=500,left=500,top=200'); return false;"><i class="bi bi-eye-fill"></i></a></td>
                     <td><a class="btn btn-success" href="/check-in/<%=data.id %>"><i class="bi bi-check-circle-fill"></i></a></td>
 
                 </tr>
-                </table>
-
-
-            
-            
             <% }) %>
+            </table>
         
         <% } else {  %>
 

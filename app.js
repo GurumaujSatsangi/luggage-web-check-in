@@ -173,63 +173,14 @@ const deleteCheckinByIdForUser = async (id, email) => {
   return supabase.from("checkin").delete().eq("id", id).eq("email", email);
 };
 
-const selectSupervisorCheckinsByDormitory = async ({ scheduledDate, dormitory }) => {
-  const normalizedDormitory = (dormitory || "").trim();
-
-  if (!normalizedDormitory) {
-    return supabase
-      .from("checkin")
-      .select("*")
-      .neq("status", "LUGGAGE CHECKED-IN")
-      .eq("scheduled_check_in_date", scheduledDate);
-  }
-
-  const byDormitoryResult = await supabase
-    .from("checkin")
-    .select("*")
-    .neq("status", "LUGGAGE CHECKED-IN")
-    .eq("scheduled_check_in_date", scheduledDate)
-    .eq("dormitory", normalizedDormitory);
-
-  if (!byDormitoryResult.error && (byDormitoryResult.data || []).length > 0) {
-    return byDormitoryResult;
-  }
-
-  if (byDormitoryResult.error && !isMissingColumnError(byDormitoryResult.error, "dormitory")) {
-    return byDormitoryResult;
-  }
-
-  const { data: students, error: studentError } = await getStudentEmailsByDormitory(normalizedDormitory);
-  if (studentError) {
-    return { data: null, error: studentError };
-  }
-
-  const emails = (students || [])
-    .map((student) => student.email_id)
-    .filter(Boolean);
-
-  if (emails.length === 0) {
-    return { data: [], error: null };
-  }
-
-  const byUserEmailResult = await supabase
-    .from("checkin")
-    .select("*")
-    .neq("status", "LUGGAGE CHECKED-IN")
-    .eq("scheduled_check_in_date", scheduledDate)
-    .in("user_email", emails);
-
-  if (!byUserEmailResult.error || !isMissingColumnError(byUserEmailResult.error, "user_email")) {
-    return byUserEmailResult;
-  }
-
-  return supabase
-    .from("checkin")
-    .select("*")
-    .neq("status", "LUGGAGE CHECKED-IN")
-    .eq("scheduled_check_in_date", scheduledDate)
-    .in("email", emails);
-};
+// const selectSupervisorCheckinsByDormitory = async ({ scheduledDate, dormitory }) => {
+//   return supabase
+//     .from("checkin")
+//     .select("*")
+//     .eq("scheduled_check_in_date", scheduledDate)
+//     .eq("dormitory", dormitory)
+//     .neq("status", "LUGGAGE CHECKED-IN");
+// };
 
 const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_in_time, luggage_info, user, image }) => {
   const buildBaseValues = (includeImage) => ({
@@ -505,10 +456,17 @@ const isoDate = today.toLocaleDateString("en-CA", {
 });
 
 app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
-  const { data, error } = await selectSupervisorCheckinsByDormitory({
-    scheduledDate: isoDate,
-    dormitory: req.user.assignedDormitory,
+  const todayIsoDate = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Kolkata",
   });
+  const supervisorDormitory = (req.user.assignedDormitory || req.user.assigned_dormitory || "").trim();
+
+  const { data, error } = await supabase
+    .from("checkin")
+    .select("*")
+    .eq("scheduled_check_in_date", todayIsoDate)
+    .neq("status", "LUGGAGE CHECKED-IN")
+    .eq("dormitory", supervisorDormitory);
 
   if (error) {
     return res.redirect(
@@ -516,11 +474,57 @@ app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
     );
   }
 
-  return res.render("supervisor.ejs", { data: data || [], user: req.user });
+  const checkins = data || [];
+  const emails = [...new Set(checkins.map((item) => item.email).filter(Boolean))];
+
+  let studentByEmail = new Map();
+  if (emails.length > 0) {
+    const { data: students, error: studentError } = await supabase
+      .from("students")
+      .select("email_id, name, registration_number")
+      .in("email_id", emails);
+
+    if (studentError) {
+      return res.redirect(
+        `/supervisor/login?message=${encodeURIComponent(studentError.message || "Unable to fetch student details.")}`,
+      );
+    }
+
+    studentByEmail = new Map((students || []).map((student) => [student.email_id, student]));
+  }
+
+  const enrichedCheckins = checkins.map((item) => {
+    const student = studentByEmail.get(item.email);
+    return {
+      ...item,
+      student_name: student?.name || "N/A",
+      registration_number: student?.registration_number || "N/A",
+    };
+  });
+
+  return res.render("supervisor.ejs", { data: enrichedCheckins, user: req.user });
 });
 
 app.get("/modify/:id", requireAuth, async (req, res) => {
   const { data, error } = await selectCheckinByIdForUser(req.params.id, req.user.email);
+
+  const scheduled_check_in_date = data.scheduled_check_in_date;
+
+   if (scheduled_check_in_date < isoDate) {
+    return res.redirect(
+              "/dashboard?message=Scheduled Check-In for a previous date cannot be modified at this time. Luggage Check-In for the next day will close today at 11:59 PM.",
+
+    );
+  }
+
+
+
+  if (scheduled_check_in_date == isoDate) {
+    return res.redirect(
+      "/dashboard?message=Scheduled Check-In cannot be modified on the day of the scheduled Check-In. Luggage Check-In for the next day will close today at 11:59 PM.",
+    );
+  }
+
   res.render("edit.ejs", { data, user: req.user });
 });
 
