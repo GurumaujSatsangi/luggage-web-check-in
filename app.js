@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import express from "express";
 import bodyParser from "body-parser";
+import AWS from 'aws-sdk'
 import ejs from "ejs";
 import session from "express-session";
 import { fileURLToPath } from "url";
@@ -136,18 +137,31 @@ const deleteCheckinByIdForUser = async (id, email) => {
   return supabase.from("checkin").delete().eq("id", id).eq("email", email);
 };
 
-const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_in_time, luggage_info, user }) => {
-  const baseValues = {
+const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_in_time, luggage_info, user, image }) => {
+  const buildBaseValues = (includeImage) => ({
     scheduled_check_in_date,
     scheduled_check_in_time,
     luggage_info,
-  };
+    ...(includeImage ? { image } : {}),
+  });
 
-  const withUserEmailAndName = await supabase.from("checkin").insert({
+  const includeImage = Boolean(image);
+  let baseValues = buildBaseValues(includeImage);
+
+  let withUserEmailAndName = await supabase.from("checkin").insert({
     ...baseValues,
     user_email: user.email,
     user_name: user.name,
   });
+
+  if (includeImage && isMissingColumnError(withUserEmailAndName.error, "image")) {
+    baseValues = buildBaseValues(false);
+    withUserEmailAndName = await supabase.from("checkin").insert({
+      ...baseValues,
+      user_email: user.email,
+      user_name: user.name,
+    });
+  }
 
   if (!withUserEmailAndName.error) {
     return withUserEmailAndName;
@@ -159,10 +173,18 @@ const insertCheckinForUser = async ({ scheduled_check_in_date, scheduled_check_i
     }
   }
 
-  const withUserEmailOnly = await supabase.from("checkin").insert({
+  let withUserEmailOnly = await supabase.from("checkin").insert({
     ...baseValues,
     user_email: user.email,
   });
+
+  if (includeImage && isMissingColumnError(withUserEmailOnly.error, "image")) {
+    baseValues = buildBaseValues(false);
+    withUserEmailOnly = await supabase.from("checkin").insert({
+      ...baseValues,
+      user_email: user.email,
+    });
+  }
 
   if (!withUserEmailOnly.error || !isMissingColumnError(withUserEmailOnly.error, "user_email")) {
     return withUserEmailOnly;
@@ -185,7 +207,7 @@ const requireAuth = async (req, res, next) => {
     if (error || !student) {
       res.clearCookie("token");
       return res.redirect(
-        "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
+        "/?message=Your VIT Email ID is not registered in the students database. Kindly contact the Hostel Administrative Office (cw.mh@vit.ac.in / cw.lh@vit.ac.in / director.mh@vit.ac.in / director.lh@vit.ac.in).",
       );
     }
     req.user = {
@@ -210,15 +232,23 @@ const requireAuth = async (req, res, next) => {
 const requireSupervisor = async (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect("/");
+
   try {
     const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
+    const supervisorEmails = getSupervisorEmails();
+
+    if (!supervisorEmails.includes(decodedUser.email)) {
+      return res.redirect("/dashboard?message=Unauthorized supervisor access.");
+    }
+
     const { data: student, error } = await getStudentByEmail(decodedUser.email);
     if (error || !student) {
       res.clearCookie("token");
       return res.redirect(
-        "/?message=Your Google email is not registered in the students table. Contact the hostel office.",
+        "/?message=Your VIT Email ID is not registered in the students database. Kindly contact the Hostel Administrative Office (cw.mh@vit.ac.in / cw.lh@vit.ac.in / director.mh@vit.ac.in / director.lh@vit.ac.in).",
       );
     }
+
     req.user = {
       ...decodedUser,
       student,
@@ -231,10 +261,7 @@ const requireSupervisor = async (req, res, next) => {
       allotted_room_number: student.allotted_room_number,
       dormitory: student.dormitory,
     };
-    const supervisorEmails = getSupervisorEmails();
-    if (!supervisorEmails.includes(req.user.email)) {
-      return res.status(403).send("Access denied: Supervisors only.");
-    }
+
     next();
   } catch {
     res.clearCookie("token");
@@ -385,8 +412,13 @@ app.get("/check-in/:id", requireSupervisor, async (req, res) => {
   return res.redirect("/supervisor/dashboard?message=Luggage Checked-In!");
 });
 
-app.post("/schedule-check-in", requireAuth, async (req, res) => {
-  const { scheduled_check_in_date, scheduled_check_in_time, luggage_info } =
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
+app.post("/schedule-check-in", upload.single('image'), requireAuth, async (req, res) => {
+  const { scheduled_check_in_date, scheduled_check_in_time, luggage_info} =
     req.body;
 
   if (scheduled_check_in_date < isoDate) {
@@ -401,11 +433,41 @@ app.post("/schedule-check-in", requireAuth, async (req, res) => {
     );
   }
 
+
+  const image = req.file;
+
+  let publicUrl = null;
+
+  if (image) {
+    const key = `${Date.now()}-${image.originalname.replace(/\s+/g, "-")}`;
+    const params = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: key,
+      Body: image.buffer,
+      ContentType: image.mimetype,
+      ACL:'public-read'
+    };
+
+    try {
+      const result = await s3.upload(params).promise();
+      publicUrl = result.Location;
+      console.log(publicUrl);
+    } catch (uploadError) {
+      console.error(uploadError);
+      return res.redirect(
+        "/dashboard?message=Image upload failed. Please try again.",
+      );
+    }
+  }
+
+
+
   const { error } = await insertCheckinForUser({
     scheduled_check_in_date,
     scheduled_check_in_time,
     luggage_info,
     user: req.user,
+    image: publicUrl,
   });
 
   if (error) {

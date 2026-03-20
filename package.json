@@ -2,8 +2,10 @@
   "name": "webcheckin",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,6 +16,7 @@
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@supabase/supabase-js": "^2.99.0",
+    "aws-sdk": "^2.1693.0",
     "body-parser": "^2.2.2",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",
