@@ -48,6 +48,12 @@
                         </div>
 
                 </div>
+
+                  <div class="alert alert-primary" role="alert">
+                <strong>IMPORTANT: Check-in will be enabled only 10 minutes prior to your scheduled check-in time. Please plan your schedule accordingly. For example, if your check-in is scheduled for 5:00 PM, the option to mark your luggage as checked-in will be available on the supervisor’s dashboard from 4:50 PM onward.</strong>
+</div>
+
+
                 <% if(data.length===0) { %>
                 
                
@@ -57,6 +63,10 @@
     <b>Schedule Check-In</b>
   </div>
   <div class="card-body">
+
+      
+
+
         <form action="/schedule-check-in" method="POST" enctype="multipart/form-data">
   <div class="mb-3">
 
@@ -87,7 +97,7 @@
 
 
 
-<h4>My Scheduled Check-In</h4>
+<h4>My Scheduled Check-In</h4><hr>
 
 <% if(data && data.length>0) { %>
 
