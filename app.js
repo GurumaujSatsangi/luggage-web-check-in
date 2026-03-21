@@ -222,17 +222,22 @@ app.get("/logout", (req, res) => {
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 
-const today = new Date();
-const isoDate = today.toLocaleDateString("en-CA", {
-  timeZone: "Asia/Kolkata",
-});
+const getIndiaDateTime = () => {
+  const now = new Date();
+  return {
+    isoDate: now.toLocaleDateString("en-CA", {
+      timeZone: "Asia/Kolkata",
+    }),
+    time: now.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+  };
+};
 
- const todayIsoDate = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Asia/Kolkata",
-  });
-
-  let now = new Date();
-let currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const normalizeDormitory = (value) => (value || "").trim().toLowerCase();
 
 
 app.get("/", (req, res) => {
@@ -377,22 +382,19 @@ app.post("/confirm/modify/:id", requireAuth, async (req, res) => {
 
 
 app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
- 
-  const supervisorDormitory = (req.user.assignedDormitory || req.user.assigned_dormitory || "").trim();
+  const { isoDate: todayIsoDate } = getIndiaDateTime();
+  const supervisorDormitory = req.user.assignedDormitory || req.user.assigned_dormitory || "";
+  const normalizedSupervisorDormitory = normalizeDormitory(supervisorDormitory);
 
-  const { data, error } = await supabase
+  const { data: checkinCandidates, error } = await supabase
     .from("checkin")
     .select("*")
-    .eq("scheduled_check_in_date", todayIsoDate)
-    .neq("status","LUGGAGE CHECKED-IN")
-    .neq("status","LUGGAGE CHECKED-OUT")
-    .eq("dormitory", supervisorDormitory);
+    .eq("scheduled_check_in_date", todayIsoDate);
 
-  const { data: checkoutData, error: checkoutError } = await supabase
+  const { data: checkoutCandidates, error: checkoutError } = await supabase
     .from("checkin")
     .select("*")
-    .eq("status", "LUGGAGE CHECKED-IN")
-    .eq("dormitory", supervisorDormitory);
+    .eq("status", "LUGGAGE CHECKED-IN");
 
   if (error) {
     return res.redirect(
@@ -406,8 +408,17 @@ app.get("/supervisor/dashboard", requireSupervisorAuth, async (req, res) => {
     );
   }
 
-  const checkins = data || [];
-  const checkouts = checkoutData || [];
+  const checkins = (checkinCandidates || []).filter((item) => {
+    const status = (item.status || "").trim().toUpperCase();
+    const isPendingCheckin = status !== "LUGGAGE CHECKED-IN" && status !== "LUGGAGE CHECKED-OUT";
+    return (
+      isPendingCheckin
+      && normalizeDormitory(item.dormitory) === normalizedSupervisorDormitory
+    );
+  });
+  const checkouts = (checkoutCandidates || []).filter(
+    (item) => normalizeDormitory(item.dormitory) === normalizedSupervisorDormitory,
+  );
   const allEmails = [
     ...new Set(
       [...checkins, ...checkouts]
@@ -479,6 +490,7 @@ app.get("/modify/:id", requireAuth, async (req, res) => {
   }
 
   const scheduled_check_in_date = data.scheduled_check_in_date;
+  const { isoDate } = getIndiaDateTime();
 
    if (scheduled_check_in_date < isoDate) {
     return res.redirect(
@@ -524,6 +536,8 @@ app.get("/delete/:id", requireAuth, async (req, res) => {
 });
 
 app.get("/check-in/:id", requireSupervisorAuth, async (req, res) => {
+  const { isoDate: todayIsoDate, time: currentTime } = getIndiaDateTime();
+
   await supabase
     .from("checkin")
     .update({ status: "LUGGAGE CHECKED-IN",check_in_date:todayIsoDate,check_in_time:currentTime,received_by:req.user.name })
@@ -533,6 +547,7 @@ app.get("/check-in/:id", requireSupervisorAuth, async (req, res) => {
 
 
 app.get("/check-out/:id", requireSupervisorAuth, async (req, res) => {
+  const { isoDate: todayIsoDate, time: currentTime } = getIndiaDateTime();
 
   await supabase
     .from("checkin")
@@ -549,6 +564,7 @@ const s3 = new AWS.S3({
 app.post("/schedule-check-in", upload.single('image'), requireAuth, async (req, res) => {
   const { scheduled_check_in_date, scheduled_check_in_time, luggage_info} =
     req.body;
+  const { isoDate } = getIndiaDateTime();
 
   if (scheduled_check_in_date < isoDate) {
     return res.redirect(
